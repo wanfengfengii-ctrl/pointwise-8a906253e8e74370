@@ -12,10 +12,15 @@ from station.quality.tally import StreamTally
 class RoundReport:
     round_id: str
     tallies: Mapping[str, StreamTally]
+    before_tallies: Mapping[str, StreamTally] | None = None
 
 
-def build_report(round_id: str, tallies: Mapping[str, StreamTally]) -> RoundReport:
-    return RoundReport(round_id, MappingProxyType(dict(tallies)))
+def build_report(
+    round_id: str, tallies: Mapping[str, StreamTally],
+    before_tallies: Mapping[str, StreamTally] | None = None,
+) -> RoundReport:
+    frozen_before = None if before_tallies is None else MappingProxyType(dict(before_tallies))
+    return RoundReport(round_id, MappingProxyType(dict(tallies)), frozen_before)
 
 
 def encode_integer(value: int) -> str:
@@ -31,15 +36,21 @@ def decode_integer(encoded: object) -> int:
     return value
 
 
-def encode_report(report: RoundReport) -> str:
-    tallies = {
+def _encode_tallies(tallies: Mapping[str, StreamTally]) -> dict:
+    return {
         stream: {
             metric: None if value is None else encode_integer(value)
             for metric, value in asdict(tally).items()
         }
-        for stream, tally in report.tallies.items()
+        for stream, tally in tallies.items()
     }
-    return json.dumps({'round_id': report.round_id, 'tallies': tallies}, sort_keys=True)
+
+
+def encode_report(report: RoundReport) -> str:
+    data: dict = {'round_id': report.round_id, 'tallies': _encode_tallies(report.tallies)}
+    if report.before_tallies is not None:
+        data['before_tallies'] = _encode_tallies(report.before_tallies)
+    return json.dumps(data, sort_keys=True)
 
 
 def _decode_tally(data: dict) -> StreamTally:
@@ -59,4 +70,11 @@ def decode_report(payload: str) -> RoundReport:
     if not isinstance(round_id, str) or not round_id:
         raise ValueError('stored report requires a round id')
     tallies = {stream: _decode_tally(tally) for stream, tally in data['tallies'].items()}
-    return build_report(round_id, tallies)
+    before = data.get('before_tallies')
+    if before is None:
+        return build_report(round_id, tallies)
+    if not isinstance(before, dict):
+        raise ValueError('stored before-segment tallies must be an object')
+    return build_report(
+        round_id, tallies, {stream: _decode_tally(tally) for stream, tally in before.items()},
+    )

@@ -24,6 +24,7 @@ python3 -B demo.py
 6. `stop(round_id)` 固定本轮证据。已停轮的推进、供帧和回投报 `RoundStateError`。用 `station.archive.publication.ArchivePublisher(station, store).seal(round_id)` 签发。运行轮拒绝签发。SQLite 提交失败报 `CommitError`，可以从原停轮重试。成功后同轮重投复领原成果号和回执。
 7. 用 `station.archive.storage.ArchiveStore(path)` 打开归档。重复 `initialize()` 保留现有数据。`close()` 关闭连接。归档将报告、逐样证据和回执一次提交。业务整数以十六进制字符串精确保存，Python 领取接口恢复为整数。草案、录制和运行轮在进程内持有，已封报告可以独立重开领取。
 8. 用 `station.archive.lookup.ArchiveReader(store).read(result_id)` 领取。返回固定报告、原源序、原码、裁定、冻结口径、回执及复算统计。未知成果报 `UnknownResult`。已知成果的同次记录缺失、裁定矛盾或复算不符报 `EvidenceMismatch`。
+9. 不停流换采用 `station.capture.session.CaptureStation.switch_subscription(round_id, subscription, slots, *, after_action=None)`。终态按开轮时冻结的规程与额度校验，非法终态报 `AdmissionError`；未知轮报 `UnknownRound`，已停轮报 `RoundStateError`。每轮至多成功一次，成功后再请求报 `RoundStateError`。终态合法但无合法动作路径时返回 `None`，不写槽、不标切点、不调回调，旧订阅与账目原样保留，可继续供帧或另申请换采。成功返回 `SwitchRecord`，含 `subscription`、`final_slots`、`cut_after_source_seq` 与按执行顺序排列的 `actions`。每个 `SwitchAction` 有 `slot`（`0`/`1`，独立切点为 `None`）、`mask`（改入掩码，清槽或独立切点为 `None`）、`cutover` 与 `after_source_seq`。`after_action(action)` 在每个实际动作后调用且不抛异常；其中可用 `inject_source` 按实际滤表供帧。换采轮 `live` 返回当前段的逐流账；`stop` 的 `tallies` 为新段计量、`before_tallies` 为旧段计量，未换采轮 `before_tallies` 为 `None`。报告与证据一次提交，领取时 `evidence.switch` 给出终态、切点与动作，`report.before_tallies` 与 `audit.before_tallies` 给出旧段复算。
 
 ## 手算样例
 

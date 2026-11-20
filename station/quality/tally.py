@@ -61,9 +61,43 @@ class RoundTally:
         return dict(self._tallies)
 
 
+class SegmentLedger:
+    """Two independent per-subscription ledgers split at the observed cutover."""
+
+    def __init__(self, before: RoundTally, calibrations: Mapping[str, CalibrationSpec]) -> None:
+        self._calibrations = calibrations
+        self._before = before
+        self._after: RoundTally | None = None
+
+    @property
+    def switched(self) -> bool:
+        return self._after is not None
+
+    def cutover(self, after_streams: Iterable[str]) -> None:
+        if self._after is not None:
+            raise ValueError('segment ledger has already cut over')
+        self._after = RoundTally(after_streams, self._calibrations)
+
+    def record_valid(self, stream: str, source_seq: int, raw_code: int) -> None:
+        target = self._after if self._after is not None else self._before
+        target.record_valid(stream, source_seq, raw_code)
+
+    def record_bad(self, stream: str) -> None:
+        target = self._after if self._after is not None else self._before
+        target.record_bad(stream)
+
+    def current(self) -> dict[str, StreamTally]:
+        return (self._after if self._after is not None else self._before).snapshot()
+
+    def segments(self) -> tuple[dict[str, StreamTally], dict[str, StreamTally] | None]:
+        """Return (old-segment tallies, new-segment tallies or None before cutover)."""
+        after = None if self._after is None else self._after.snapshot()
+        return self._before.snapshot(), after
+
+
 class LiveLedger:
     def __init__(self) -> None:
-        self._rounds: dict[str, RoundTally] = {}
+        self._rounds: dict[str, RoundTally | SegmentLedger] = {}
 
     def open(
         self, round_id: str, streams: Iterable[str], calibrations: Mapping[str, CalibrationSpec]
@@ -74,9 +108,19 @@ class LiveLedger:
         self._rounds[round_id] = tally
         return tally
 
+    def begin_switch(
+        self, round_id: str, calibrations: Mapping[str, CalibrationSpec],
+    ) -> SegmentLedger:
+        entry = self._rounds[round_id]
+        if isinstance(entry, SegmentLedger):
+            raise ValueError(f'round {round_id} is already segmented')
+        ledger = SegmentLedger(entry, calibrations)
+        self._rounds[round_id] = ledger
+        return ledger
+
     def live(self, round_id: str) -> dict[str, StreamTally]:
         try:
             tally = self._rounds[round_id]
         except KeyError as exc:
             raise UnknownRound(round_id) from exc
-        return tally.snapshot()
+        return tally.current() if isinstance(tally, SegmentLedger) else tally.snapshot()

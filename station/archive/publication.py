@@ -38,7 +38,7 @@ class ArchivePublisher:
         if existing is not None:
             return _seal_result(existing)
         stopped = self._station.stopped_round(round_id)
-        report = build_report(stopped.round_id, stopped.tallies)
+        report = build_report(stopped.round_id, stopped.tallies, stopped.before_tallies)
         evidence = freeze_evidence(stopped)
         stored = self._store.commit_round(round_id, encode_report(report), encode_evidence(evidence))
         return _seal_result(stored)

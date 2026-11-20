@@ -5,7 +5,7 @@ from enum import StrEnum
 
 from station.capture.port import PhysicalObservation, PortStep
 from station.capture.recording import SourceFrame
-from station.quality.tally import RoundTally
+from station.quality.tally import RoundTally, SegmentLedger
 from station.receipt.frame import FrameVerdict
 from station.receipt.ingest import ReceiptOutcome, ingest
 from station.receipt.journal import ReceiptJournal
@@ -34,7 +34,7 @@ class DeliveryOutcome:
 def deliver_received(
     frame: SourceFrame,
     journal: ReceiptJournal,
-    tally: RoundTally,
+    tally: RoundTally | SegmentLedger,
     subscription: frozenset[str],
     raw_min: int,
     raw_max: int,
@@ -51,7 +51,7 @@ def deliver_received(
 def deliver_frame(
     step: PortStep,
     journal: ReceiptJournal,
-    tally: RoundTally,
+    tally: RoundTally | SegmentLedger,
     subscription: frozenset[str],
     raw_min: int,
     raw_max: int,

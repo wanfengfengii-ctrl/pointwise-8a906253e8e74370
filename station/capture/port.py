@@ -50,6 +50,20 @@ class ReplayPort:
         cursor, table = self._running_state()
         return self._emit(cursor.next_frame(), table)
 
+    @property
+    def table(self) -> FixedFilterTable:
+        _, table = self._running_state()
+        return table
+
+    def replace_table(self, table: FixedFilterTable) -> None:
+        """Change the physical slot table as one device action, keeping the cursor."""
+        self._running_state()
+        self._table = table
+
+    @property
+    def last_source_seq(self) -> int | None:
+        return self._last_source_seq
+
     def supply(self, frame: SourceFrame) -> PortStep:
         """Insert a real source frame in the gap before the next recording item."""
         cursor, table = self._running_state()
